@@ -7,8 +7,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 
 	"github.com/google/syzkaller/pkg/osutil"
+	"github.com/google/syzkaller/sys"
 )
 
 type fuchsia struct {
@@ -35,6 +37,23 @@ func (ctx *fuchsia) Poll(repo, branch string) (*Commit, error) {
 			return nil, err
 		}
 	}
+
+	// Manually checkout the same version of Syzkaller into
+	// third_party/syzkaller.
+	_, selfGoFile, _, _ := runtime.Caller(0)
+	syzRepo, err := filepath.Abs(filepath.Join(filepath.Dir(selfGoFile), "../.."))
+	if err != nil {
+		return nil, err
+	}
+
+	syzSrc := filepath.Join(ctx.dir, "third_party/syzkaller")
+	if _, err := runSandboxed(syzSrc, "git", "fetch", syzRepo, sys.GitRevisionBase); err != nil {
+		return nil, err
+	}
+	if _, err := runSandboxed(syzSrc, "git", "checkout", sys.GitRevisionBase); err != nil {
+		return nil, err
+	}
+
 	return ctx.repo.HeadCommit()
 }
 
